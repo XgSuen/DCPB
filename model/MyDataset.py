@@ -48,6 +48,9 @@ def collen_fn(batch):
     labels = torch.LongTensor(classes)
     pop_labels_tr = torch.FloatTensor(pop_label)
     cids = torch.LongTensor([int(c) for c in cid])
+    b, l = pop_labels_tr.size(0), pop_labels_tr.size(1)
+    masks = torch.FloatTensor([torch.tril(torch.ones(l, l)) for _ in range(b)])
+
     return batch_graphs, pop_tr, t_pos_tr, labels, pop_labels_tr, cids
 
 def get_batch_data(path, batch_size, type='train'):
