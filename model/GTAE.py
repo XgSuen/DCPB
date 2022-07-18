@@ -6,14 +6,41 @@ from dgl.nn.pytorch.conv import DGNConv
 from dgl.nn.pytorch import GlobalAttentionPooling
 from torch.nn import TransformerEncoderLayer, TransformerDecoderLayer, TransformerDecoder
 
+class PeerLevelLayer(nn.Module):
+    """
+    对等层，让时间序列的隐藏向量信息和参数与图的保持一致
+    """
+    def __init__(self, net_params):
+        super(PeerLevelLayer, self).__init__()
+        in_size = net_params['in_size']
+        self.linear1 = nn.Linear(in_size, 512)
+        self.linear2 = nn.Linear(512, in_size)
+        self.layernorm = nn.LayerNorm(in_size)
+        self.dropot = nn.Dropout(p=net_params['dropout_rate'])
+
+    def forward(self, x):
+        x = self.dropot(x)
+        out = self.linear1(x)
+        out = self.linear2(out)
+        # post norm
+        return self.layernorm(x + out)
+
+
+
 class DGN(nn.Module):
+    """
+    有向GNN, 用于生成级联图表示
+    """
     def __init__(self, net_params):
         super(DGN, self).__init__()
+        # 有向GNN的参数
         in_size = net_params['in_size']
         out_size = net_params['out_size']
+        # 选择聚合方法, mean, max ,,,
         aggregators = net_params['aggregators']
         scalers = net_params['scalers']
         num_layers = net_params['L']
+        # 平均度数
         avg_d = net_params['avg_d']
 
         self.dgn = nn.ModuleList([DGNConv(in_size=in_size,
@@ -21,7 +48,7 @@ class DGN(nn.Module):
                                           aggregators=aggregators,
                                           scalers=scalers,
                                           delta=avg_d) for _ in range(num_layers)])
-
+        # 全局attention池化
         self.pooling = GlobalAttentionPooling(gate_nn=nn.Linear(out_size, 1))
 
     def forward(self, graph, node_feat, edge_feat, eig_vec):
@@ -35,6 +62,9 @@ class DGN(nn.Module):
 
 
 class MircoTransformer(nn.Module):
+    """
+    微观Transformer模块, 用于嵌入流行度序列
+    """
     def __init__(self, net_params):
         super(MircoTransformer, self).__init__()
         layers = net_params['L']
@@ -51,6 +81,7 @@ class MircoTransformer(nn.Module):
         return x.sum(-2)
 
 class TransVAE(nn.Module):
+    # VAE模块, 用于捕获不确定性
     def __init__(self, net_params):
         super(TransVAE, self).__init__()
         # node_emb = tf.keras.layers.Dense(FLAGS.emb_dim)(bn_casflow_inputs)
