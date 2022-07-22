@@ -32,14 +32,13 @@ class TokenEncoding(nn.Module):
     def __init__(self, c_in, d_model):
         super(TokenEncoding, self).__init__()
         padding = 1 if torch.__version__ >= '1.5.0' else 2
-        self.tokenConv = nn.Conv1d(in_channels=c_in, out_channels=d_model, kernel_size=3, padding=padding, padding_mode='circular')
+        self.tokenConv = nn.Conv1d(in_channels=c_in, out_channels=d_model, kernel_size=3, padding=1, padding_mode='circular')
 
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
                 nn.init.kaiming_uniform_(m.weight,mode='fan_in',nonlinearity='leaky_relu')
 
     def forward(self, x):
-        print(x)
         x = self.tokenConv(x)
         return x
 
@@ -128,10 +127,11 @@ class PopEmbedding(nn.Module):
         self.pos_embedding = PositionalEncoding(d_model)
         self.temp_embedding = TemporalEncoding(d_model)
 
-        self.dropout = nn.Dropout(p=dropout)
+        # self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, t_pos):
+        x = x.unsqueeze(1)
         x = self.token_embedding(x).permute(0, 2, 1)
         y = x + self.pos_embedding(x) + self.temp_embedding(t_pos, embed_type='pop')
-        return self.dropout(y)
+        return y
 

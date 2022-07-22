@@ -2,9 +2,12 @@ import math
 import numpy as np
 from global_params import get_params
 from itertools import groupby
+import pickle as pkl
 
 def process_data(dataname):
     observation, unit_time, span, window_size, unit_size, rpath,_, wpath = get_params(dataname)
+    # all pops
+    data_pops = []
     # 窗口总数
     windows = int((unit_time / window_size) * span)
     # 每个窗口包含的单位窗口的数量
@@ -31,6 +34,7 @@ def process_data(dataname):
             pop_arr = np.array(pops).reshape((-1, wu))
             # 求和得到窗口内流行度
             each_wd_pop = np.sum(pop_arr, -1)
+            data_pops.extend(list(each_wd_pop))
             # 过滤掉观测时间内爆发的级联
             label = np.argmax(each_wd_pop)
             if label < ow:
@@ -39,5 +43,6 @@ def process_data(dataname):
             pop_label = list(map(str, each_wd_pop))[ow:]
             f2.write(cid + '\t' + rid + '\t' + pub_time + '\t' + pop + '\t' + ' '.join(sort_cascade_l) +
                      '\t' + ' '.join(pop_list) + '\t' + str(label) + '\t' + ' '.join(pop_label) + '\n')
-
+    with open(wpath + 'all_pops.pkl', 'wb') as f3:
+        pkl.dump([np.log2(p+1) for p in data_pops], f3)
 process_data(dataname='weibo')

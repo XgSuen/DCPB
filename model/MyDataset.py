@@ -7,6 +7,7 @@ import pickle
 from collections import Counter
 import dgl
 import pprint
+from process.utils import StandardScaler
 
 class CasData(Data.Dataset):
     def __init__(self, path):
@@ -21,6 +22,16 @@ class CasData(Data.Dataset):
         minclass = min(dataset['classes'])
         self.classes = [c - minclass for c in dataset['classes']]
         self.pop_label = dataset['pop_label']
+
+        # 归一化
+        scaler = StandardScaler()
+        pop_lst = np.log2(np.array(self.pop_lst)+1)
+        pop_label = np.log2(np.array(self.pop_label)+1)
+        data = np.hstack((pop_lst, pop_label))
+        scaler.fit(data)
+        self.pop_lst = scaler.transform(pop_lst)
+        self.pop_label = scaler.transform(pop_label)
+
 
     def __getitem__(self, item):
         return self.cid[item], self.graph_lst[item], self.pop_lst[item], \
@@ -43,14 +54,15 @@ def collen_fn(batch):
         batch_g = [gs[i] for gs in graph_lst]
         dgl_graph = [dgl.from_networkx(g, node_attrs=['time', 'deg', 'nid'], edge_attrs=['weight']) for g in batch_g]
         batch_graphs.append(dgl.batch(dgl_graph))
-    pop_tr = torch.FloatTensor(pop_lst)
+    pop_tr = torch.FloatTensor(np.array(pop_lst))
     t_pos_tr = torch.LongTensor(t_pos)
     labels = torch.LongTensor(classes)
-    pop_labels_tr = torch.FloatTensor(pop_label)
+    pop_labels_tr = torch.FloatTensor(np.array(pop_label))
     cids = torch.LongTensor([int(c) for c in cid])
     # 添加decoder的mask，一个下三角全1矩阵
     batch_size, seq_l = pop_labels_tr.size(0), pop_labels_tr.size(1)
-    masks = torch.FloatTensor([torch.tril(torch.ones(seq_l,seq_l))] for _ in range(batch_size))
+    masks = ~(torch.tril(torch.ones(seq_l, seq_l) == 1))
+    # masks = torch.FloatTensor([torch.tril(torch.ones(seq_l,seq_l)) for _ in range(batch_size)])
     return batch_graphs, pop_tr, t_pos_tr, labels, pop_labels_tr, cids, masks
 
 def get_batch_data(path, batch_size, type='train'):
@@ -74,11 +86,14 @@ def get_batch_data(path, batch_size, type='train'):
 
 # if __name__ == '__main__':
 #     path = '../dataset/weibo/train.pkl'
-#     loader = get_batch_data(path, 64)
+#     loader = get_batch_data(path, 4)
 #     for i, batch in enumerate(loader):
 #         print(i)
-        # pop = batch[1]
-        # print("pop", pop)
+#         pop = batch[1]
+#         print("pop", pop)
+#         pop_l = batch[4]
+#         print(pop_l)
+#         break
         # pos = batch[2]
         # print("pos", pos)
         # bg = batch[0][2]
